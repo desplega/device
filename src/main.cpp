@@ -26,8 +26,9 @@ float frequency = 868.0;
 unsigned int count = 1;
 
 // Data wire is plugged into port 2 on the Arduino
-#define ONE_WIRE_BUS 2 // D4
-#define TEMPERATURE_PRECISION 9 // Lower resolution
+
+#define ONE_WIRE_BUS 4           // D4 (not the pin number, but the number of digital I/O port)
+#define TEMPERATURE_PRECISION 10 // Lower resolution
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
 OneWire oneWire(ONE_WIRE_BUS);
@@ -94,6 +95,10 @@ void initDT()
       Serial.print("Resolution actually set to: ");
       Serial.print(sensors.getResolution(tempDeviceAddress), DEC);
       Serial.println();
+
+      float tempC = sensors.getTempCByIndex(0);
+      Serial.print("FIRST Read temp: ");
+      Serial.println(tempC);
     }
     else
     {
@@ -153,11 +158,11 @@ void readData()
 
       // It responds almost immediately. Let's print out the data
       float tempC = sensors.getTempC(tempDeviceAddress);
-      Serial.print("Read temp: ");
-      Serial.println((String)tempC);
-      dt_dat[i * 2] = (int)tempC;                         //Get Temperature Integer Part
-      dt_dat[(i * 2) + 1] = (int)(tempC - dt_dat[i * 2] * 100); //Get Temperature Decimal Part
-    } else {
+      dt_dat[i * 2] = (int)tempC; // Get temperature integer part
+      dt_dat[(i * 2) + 1] = (int)((tempC - (int)tempC) * 100); // Get temperature decimal part
+    }
+    else
+    {
       // Ghost device! Check your power requirements and cabling
       Serial.println("Ghost device!");
     }
@@ -170,7 +175,7 @@ void readData()
   {
     cksum = dt_dat[j] + dt_dat[j + 1];
   }
-  dt_dat[(j * 2) - 2] = cksum;
+  dt_dat[j * 2] = cksum;
 };
 
 uint16_t calcByte(uint16_t crc, uint8_t b)
