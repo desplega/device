@@ -1,2 +1,2 @@
-# device
+# Device
 Code for IoT devices
