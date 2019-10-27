@@ -354,11 +354,11 @@ protected:
     /// The configured transmitter enable pin
     uint8_t         _pttPin;
 
-    /// True of the sense of the rxPin is to be inverted
-    bool            _rxInverted;
-
     /// True of the sense of the pttPin is to be inverted
     bool            _pttInverted;
+
+    /// True of the sense of the rxPin is to be inverted
+    bool            _rxInverted;
 
     // Used in the interrupt handlers
     /// Buf is filled but not validated
