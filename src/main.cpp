@@ -27,8 +27,8 @@ unsigned int count = 1;
 
 // Data wire is plugged into port 2 on the Arduino
 
-#define ONE_WIRE_BUS 4           // D4 (not the pin number, but the number of digital I/O port)
-#define TEMPERATURE_PRECISION 10 // Lower resolution
+#define ONE_WIRE_BUS 4          // D4 (not the pin number, but the number of digital I/O port)
+#define TEMPERATURE_PRECISION 9 // Lower resolution
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
 OneWire oneWire(ONE_WIRE_BUS);
@@ -56,16 +56,13 @@ void initDT()
   // Start up the library
   sensors.begin();
 
-  // Grab a count of devices on the wire
-  //numberOfDevices = sensors.getDeviceCount(); // This function doesn't work :(
-  numberOfDevices = 1; // Forced
-
   // locate devices on the bus
-  Serial.print("Locating DT devices...");
+  Serial.print("Locating DT devices... ");
 
-  Serial.print("Found ");
+  // Grab a count of devices on the wire
+  numberOfDevices = sensors.getDeviceCount();
   Serial.print(numberOfDevices, DEC);
-  Serial.println(" devices.");
+  Serial.println(" device(s) found");
 
   // Report parasite power requirements
   Serial.print("Parasite power is: ");
@@ -95,10 +92,6 @@ void initDT()
       Serial.print("Resolution actually set to: ");
       Serial.print(sensors.getResolution(tempDeviceAddress), DEC);
       Serial.println();
-
-      float tempC = sensors.getTempCByIndex(0);
-      Serial.print("FIRST Read temp: ");
-      Serial.println(tempC);
     }
     else
     {
@@ -147,18 +140,15 @@ void readData()
   bGlobalErr = 0;
 
   // Get data from sensors (up to 2 devices)
+  sensors.requestTemperatures(); // Send the command to get temperature readings
   for (int i = 0; i < numberOfDevices; i++)
   {
     // Search the wire for address
     if (sensors.getAddress(tempDeviceAddress, i))
     {
-      // Output the device ID
-      Serial.print("Temperature for device: ");
-      Serial.println(i, DEC);
-
-      // It responds almost immediately. Let's print out the data
+      // Get temperature for each device
       float tempC = sensors.getTempC(tempDeviceAddress);
-      dt_dat[i * 2] = (int)tempC; // Get temperature integer part
+      dt_dat[i * 2] = (int)tempC;                              // Get temperature integer part
       dt_dat[(i * 2) + 1] = (int)((tempC - (int)tempC) * 100); // Get temperature decimal part
     }
     else
@@ -303,7 +293,7 @@ void loop()
     }
     else
     {
-      Serial.println("recv failed");               //
+      Serial.println("recv failed");
       rf95.send(sendBuf, strlen((char *)sendBuf)); //resend if no reply
     }
   }
@@ -312,6 +302,6 @@ void loop()
     Serial.println("No reply, is LoRa gateway running?"); //No signal reply
     rf95.send(sendBuf, strlen((char *)sendBuf));          //resend data
   }
-  delay(30000); // Send sensor data every 30 seconds
+  delay(10000); // Send sensor data every 10 seconds
   Serial.println("");
 }
