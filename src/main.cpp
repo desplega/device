@@ -228,7 +228,7 @@ void loop()
       Serial.print(i);
       Serial.print(" = ");
       Serial.print(data[3 + (i * 2)], DEC); //Show temperature
-      Serial.print(".");
+      Serial.print(",");
       Serial.print(data[4 + (i * 2)], DEC); //Show temperature
       Serial.println("C  ");
     }
@@ -283,6 +283,12 @@ void loop()
         pinMode(4, OUTPUT);
         digitalWrite(4, HIGH);
         Serial.print("Got Reply from Gateway: "); //print reply
+        // Convert node ID to text
+        char str[3];
+        sprintf(str, "%d%d%d", buf[0], buf[1], buf[2]);
+        buf[0] = str[0];
+        buf[1] = str[1];
+        buf[2] = str[2];
         Serial.println((char *)buf);
 
         delay(400);
