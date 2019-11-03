@@ -2,12 +2,15 @@
   Require Library: 
   https://github.com/dragino/RadioHead
   
-  Upload Data to IoT Server ThingSpeak (https://thingspeak.com/):
-  Support Devices: LoRa Shield + Arduino 
+  Upload Data to IoT Lora Gateway:
+  Support Devices: LoRa Radio Node v1.0
   
-  Example sketch showing how to read Temperature from Dallas Temperature sensor DS18B20,  
+  This program reads Temperature from Dallas Temperature sensor DS18B20.
+  It also reads a digital input that will be connected to a high voltage mesh.
   Then send the value to LoRa Gateway, the LoRa Gateway will send the value to the 
-  IoT server
+  IoT server (MQTT Server)
+
+  Copyright: desplega.com
 */
 
 #include <SPI.h>
@@ -15,6 +18,11 @@
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
+
+#include "nvm.h"
+
+// Store deviceID in a permanent variable to avoid reading nvm everytime we need it
+char deviceID[6];
 
 RH_RF95 rf95;
 
@@ -28,8 +36,7 @@ unsigned int count = 1;
 // Mesh status
 #define MESH_PIN 3
 
-// Data wire is plugged into port 2 on the Arduino
-
+// Data wire is plugged into port 4 on the Arduino
 #define ONE_WIRE_BUS 4          // D4 (not the pin number, but the number of digital I/O port)
 #define TEMPERATURE_PRECISION 9 // Lower resolution
 
@@ -136,6 +143,10 @@ void setup()
   // Configure serial port
   Serial.begin(9600);
 
+  // Init NVM
+  nvmInit();
+  nvmGetDeviceID(deviceID);
+
   // Temperature sensors init
   initDT();
 
@@ -215,34 +226,52 @@ void loop()
   count++;
   readData();
   char data[50] = {0};
-  int dataLength = 3 + numberOfDevices * 2 + 1; // Payload Length: node_id + temperature(s) + mesh
+  int dataLength = 3 + 6 + numberOfDevices * 2 + 1; // Payload Length: node_id + temperature(s) + mesh
+
   // Use data[0], data[1], data[2] as Node ID
   data[0] = node_id[0];
   data[1] = node_id[1];
   data[2] = node_id[2];
+
+  // Get device ID
+  for (i = 0; i < DEVICE_ID_LENGTH; i++)
+  {
+    data[3 + i] = deviceID[i];
+  }
+  Serial.print("Device ID: ");
+  // Convert node ID to text
+  char str[25];
+  sprintf(str, "%d %d %d %d %d %d", deviceID[0], deviceID[1], deviceID[2], deviceID[3], deviceID[4], deviceID[5]);
+  str[25] = 0x00; // End of string
+  Serial.println(str);
+
   // Get temperature(s)
   for (i = 0; i < numberOfDevices; i++)
   {
-    data[3 + (i * 2)] = dt_dat[i * 2];       //Get Temperature Integer Part
-    data[4 + (i * 2)] = dt_dat[(i * 2) + 1]; //Get Temperature Decimal Part
+    data[9 + (i * 2)] = dt_dat[i * 2];        //Get Temperature Integer Part
+    data[10 + (i * 2)] = dt_dat[(i * 2) + 1]; //Get Temperature Decimal Part
   }
+
   // Get mesh status
-  data[3 + (i * 2)] = dt_dat[i * 2]; // Mesh status
+  data[9 + (i * 2)] = dt_dat[i * 2]; // Mesh status
+
   switch (bGlobalErr)
   {
   case 0:
+    // Print temperature(s)
     for (i = 0; i < numberOfDevices; i++)
     {
       Serial.print("Temperature ");
       Serial.print(i);
       Serial.print(": ");
-      Serial.print(data[3 + (i * 2)], DEC); //Show temperature
+      Serial.print(data[9 + (i * 2)], DEC); //Show temperature
       Serial.print(",");
-      Serial.print(data[4 + (i * 2)], DEC); //Show temperature
+      Serial.print(data[10 + (i * 2)], DEC); //Show temperature
       Serial.println("C");
     }
+    // Print mesh status
     Serial.print("Mesh status: ");
-    Serial.println(data[3 + (i * 2)], DEC); // Show mesh status
+    Serial.println(data[9 + (i * 2)], DEC); // Show mesh status
     break;
   default:
     Serial.println("Error: Unrecognized code encountered.");
