@@ -25,6 +25,9 @@ char node_id[3] = {1, 1, 1}; // LoRa End Node ID
 float frequency = 868.0;
 unsigned int count = 1;
 
+// Mesh status
+#define MESH_PIN 3
+
 // Data wire is plugged into port 2 on the Arduino
 
 #define ONE_WIRE_BUS 4          // D4 (not the pin number, but the number of digital I/O port)
@@ -102,6 +105,11 @@ void initDT()
   }
 }
 
+void initMeshStatus(void)
+{
+  pinMode(MESH_PIN, INPUT_PULLUP); // Internal pull up enabled
+}
+
 void initLoRa(void)
 {
   // LoRa init
@@ -131,6 +139,9 @@ void setup()
   // Temperature sensors init
   initDT();
 
+  // Mesh status
+  initMeshStatus();
+
   // LoRa Init
   initLoRa();
 }
@@ -139,9 +150,10 @@ void readData()
 {
   bGlobalErr = 0;
 
-  // Get data from sensors (up to 2 devices)
+  // Get data from temperature sensors (up to 2 devices)
   sensors.requestTemperatures(); // Send the command to get temperature readings
-  for (int i = 0; i < numberOfDevices; i++)
+  int i;
+  for (i = 0; i < numberOfDevices; i++)
   {
     // Search the wire for address
     if (sensors.getAddress(tempDeviceAddress, i))
@@ -158,14 +170,8 @@ void readData()
     }
   }
 
-  // Calculate check sum
-  int cksum = 0;
-  int j = 0;
-  for (j = 0; j < numberOfDevices; j++)
-  {
-    cksum = dt_dat[j] + dt_dat[j + 1];
-  }
-  dt_dat[j * 2] = cksum;
+  // Get mesh status
+  dt_dat[i * 2] = digitalRead(MESH_PIN);
 };
 
 uint16_t calcByte(uint16_t crc, uint8_t b)
@@ -209,16 +215,19 @@ void loop()
   count++;
   readData();
   char data[50] = {0};
-  int dataLength = 3 + numberOfDevices * 2; // Payload Length
+  int dataLength = 3 + numberOfDevices * 2 + 1; // Payload Length: node_id + temperature(s) + mesh
   // Use data[0], data[1], data[2] as Node ID
   data[0] = node_id[0];
   data[1] = node_id[1];
   data[2] = node_id[2];
+  // Get temperature(s)
   for (i = 0; i < numberOfDevices; i++)
   {
     data[3 + (i * 2)] = dt_dat[i * 2];       //Get Temperature Integer Part
     data[4 + (i * 2)] = dt_dat[(i * 2) + 1]; //Get Temperature Decimal Part
   }
+  // Get mesh status
+  data[3 + (i * 2)] = dt_dat[i * 2]; // Mesh status
   switch (bGlobalErr)
   {
   case 0:
@@ -226,12 +235,14 @@ void loop()
     {
       Serial.print("Temperature ");
       Serial.print(i);
-      Serial.print(" = ");
+      Serial.print(": ");
       Serial.print(data[3 + (i * 2)], DEC); //Show temperature
       Serial.print(",");
       Serial.print(data[4 + (i * 2)], DEC); //Show temperature
-      Serial.println("C  ");
+      Serial.println("C");
     }
+    Serial.print("Mesh status: ");
+    Serial.println(data[3 + (i * 2)], DEC); // Show mesh status
     break;
   default:
     Serial.println("Error: Unrecognized code encountered.");
