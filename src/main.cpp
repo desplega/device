@@ -27,11 +27,13 @@ char deviceID[6];
 RH_RF95 rf95;
 
 // LoRa data configuration
-byte bGlobalErr;
 char dt_dat[5];              // Store Sensor Data (MAX 2 devices!)
 char node_id[3] = {1, 1, 1}; // LoRa End Node ID
 float frequency = 868.0;
 unsigned int count = 1;
+
+// To construct the LoRa packet we expect always a specific number of devices
+#define PACKET_EXPECTED_DEVICES 2
 
 // Mesh status
 #define MESH_PIN 3
@@ -61,7 +63,7 @@ void printAddress(DeviceAddress deviceAddress)
   }
 }
 
-void initDT()
+void initDT(void)
 {
   // Start up the library
   sensors.begin();
@@ -159,30 +161,43 @@ void setup()
 
 void readData()
 {
-  bGlobalErr = 0;
-
   // Get data from temperature sensors (up to 2 devices)
-  sensors.requestTemperatures(); // Send the command to get temperature readings
-  int i;
-  for (i = 0; i < numberOfDevices; i++)
+  if (numberOfDevices > 0)
   {
-    // Search the wire for address
-    if (sensors.getAddress(tempDeviceAddress, i))
+    sensors.requestTemperatures(); // Send the command to get temperature readings
+    for (int i = 0; i < numberOfDevices; i++)
     {
-      // Get temperature for each device
-      float tempC = sensors.getTempC(tempDeviceAddress);
-      dt_dat[i * 2] = (int)tempC;                              // Get temperature integer part
-      dt_dat[(i * 2) + 1] = (int)((tempC - (int)tempC) * 100); // Get temperature decimal part
-    }
-    else
-    {
-      // Ghost device! Check your power requirements and cabling
-      Serial.println("Ghost device!");
+      // Search the wire for address
+      if (sensors.getAddress(tempDeviceAddress, i))
+      {
+        // Get temperature for each device
+        float tempC = sensors.getTempC(tempDeviceAddress);
+        dt_dat[i * 2] = (int)tempC;                              // Get temperature integer part
+        dt_dat[(i * 2) + 1] = (int)((tempC - (int)tempC) * 100); // Get temperature decimal part
+      }
+      else
+      {
+        // Ghost device! Check your power requirements and cabling
+        Serial.println("Ghost device!");
+      }
     }
   }
 
+  // Fill with dummy data in case some sensors fail or are not present
+  switch (numberOfDevices)
+  {
+  case 0:
+    dt_dat[0] = 0;
+    dt_dat[1] = 0;
+    // No break
+  case 1:
+    dt_dat[2] = 0;
+    dt_dat[3] = 0;
+    break;
+  }
+
   // Get mesh status
-  dt_dat[i * 2] = digitalRead(MESH_PIN);
+  dt_dat[4] = digitalRead(MESH_PIN);
 };
 
 uint16_t calcByte(uint16_t crc, uint8_t b)
@@ -217,8 +232,6 @@ uint16_t CRC16(uint8_t *pBuffer, uint32_t length)
 
 void loop()
 {
-  int i; // Counter
-
   Serial.print("###########    ");
   Serial.print("COUNT=");
   Serial.print(count);
@@ -226,7 +239,7 @@ void loop()
   count++;
   readData();
   char data[50] = {0};
-  int dataLength = 3 + 6 + numberOfDevices * 2 + 1; // Payload Length: node_id + temperature(s) + mesh
+  int dataLength = 3 + 6 + PACKET_EXPECTED_DEVICES * 2 + 1; // Payload Length: node_id + temperature(s) + mesh
 
   // Use data[0], data[1], data[2] as Node ID
   data[0] = node_id[0];
@@ -234,7 +247,7 @@ void loop()
   data[2] = node_id[2];
 
   // Get device ID
-  for (i = 0; i < DEVICE_ID_LENGTH; i++)
+  for (int i = 0; i < DEVICE_ID_LENGTH; i++)
   {
     data[3 + i] = deviceID[i];
   }
@@ -246,44 +259,36 @@ void loop()
   Serial.println(str);
 
   // Get temperature(s)
-  for (i = 0; i < numberOfDevices; i++)
+  for (int i = 0; i < PACKET_EXPECTED_DEVICES; i++)
   {
     data[9 + (i * 2)] = dt_dat[i * 2];        //Get Temperature Integer Part
     data[10 + (i * 2)] = dt_dat[(i * 2) + 1]; //Get Temperature Decimal Part
   }
 
   // Get mesh status
-  data[9 + (i * 2)] = dt_dat[i * 2]; // Mesh status
+  data[13] = dt_dat[4]; // Mesh status
 
-  switch (bGlobalErr)
+  // Print temperature(s)
+  for (int i = 0; i < PACKET_EXPECTED_DEVICES; i++)
   {
-  case 0:
-    // Print temperature(s)
-    for (i = 0; i < numberOfDevices; i++)
-    {
-      Serial.print("Temperature ");
-      Serial.print(i);
-      Serial.print(": ");
-      Serial.print(data[9 + (i * 2)], DEC); //Show temperature
-      Serial.print(",");
-      Serial.print(data[10 + (i * 2)], DEC); //Show temperature
-      Serial.println("C");
-    }
-    // Print mesh status
-    Serial.print("Mesh status: ");
-    Serial.println(data[9 + (i * 2)], DEC); // Show mesh status
-    break;
-  default:
-    Serial.println("Error: Unrecognized code encountered.");
-    break;
+    Serial.print("Temperature ");
+    Serial.print(i);
+    Serial.print(": ");
+    Serial.print(data[9 + (i * 2)], DEC); //Show temperature
+    Serial.print(",");
+    Serial.print(data[10 + (i * 2)], DEC); //Show temperature
+    Serial.println("C");
   }
+  // Print mesh status
+  Serial.print("Mesh status: ");
+  Serial.println(data[13], DEC); // Show mesh status
 
   uint16_t crcData = CRC16((unsigned char *)data, dataLength); //get CRC DATA
   //Serial.println(crcData,HEX);
 
   Serial.print("Data to be sent(without CRC): ");
 
-  for (i = 0; i < dataLength; i++)
+  for (int i = 0; i < dataLength; i++)
   {
     Serial.print(data[i], HEX);
     Serial.print(" ");
@@ -292,7 +297,7 @@ void loop()
 
   unsigned char sendBuf[50] = {0};
 
-  for (i = 0; i < dataLength; i++)
+  for (int i = 0; i < dataLength; i++)
   {
     sendBuf[i] = data[i];
   }
@@ -301,7 +306,7 @@ void loop()
   sendBuf[dataLength + 1] = (unsigned char)(crcData >> 8); // Add CRC to LoRa Data
 
   Serial.print("Data to be sent(with CRC):    ");
-  for (i = 0; i < (dataLength + 2); i++)
+  for (int i = 0; i < (dataLength + 2); i++)
   {
     Serial.print(sendBuf[i], HEX);
     Serial.print(" ");
@@ -320,21 +325,17 @@ void loop()
     {
       if (buf[0] == node_id[0] && buf[1] == node_id[2] && buf[2] == node_id[2]) // Check if reply message has the our node ID
       {
-        pinMode(4, OUTPUT);
-        digitalWrite(4, HIGH);
         Serial.print("Got Reply from Gateway: "); //print reply
         // Convert node ID to text
-        char str[3];
+        char str[4]; // Considered last 0 character for strings
         sprintf(str, "%d%d%d", buf[0], buf[1], buf[2]);
         buf[0] = str[0];
         buf[1] = str[1];
         buf[2] = str[2];
         Serial.println((char *)buf);
 
-        delay(400);
-        digitalWrite(4, LOW);
-        //Serial.print("RSSI: ");  // print RSSI
-        //Serial.println(rf95.lastRssi(), DEC);
+        Serial.print("RSSI: ");  // print RSSI
+        Serial.println(rf95.lastRssi(), DEC);
       }
     }
     else
