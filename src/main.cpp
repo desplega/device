@@ -163,8 +163,9 @@ void setup()
   initLoRa();
 
   // Start in idle mode, required to avoid continuous reset... but I don't know why :(
+  delay(1000); // Wait some time just in case to make everything stable
   rf95.sleep();
-  goToSleep();
+  goToSleep(INIT_SLEEP_TIME);
 }
 
 void readData()
@@ -358,9 +359,9 @@ void loop()
     rf95.send(sendBuf, strlen((char *)sendBuf));          // Resend data
   }
   Serial.println("");
-  delay(2000); // 2 seconds
-  
+
   // Power down mode
+  delay(2000);  // Wait some time just in case to make everything stable
   rf95.sleep(); // Disable LoRa radio
-  goToSleep();
+  goToSleep(SLEEP_TIME);
 }

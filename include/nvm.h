@@ -10,13 +10,13 @@
   Copyright: desplega.com
 */
 
-// DEVICE ID: To be manually defined with 6 bytes. It must be unique!
-#define DEVICE_ID_LENGTH 6
-#define DEVICE_ID {19, 11, 03, 18, 12, 00} // Year, Month, Day, Hour, Minutes, Seconds
-
 // NVM map
 #define VIRGIN_ADDR 00 // 1 byte
 #define DEVICE_ID_ADDR 01 // 6 bytes
+
+// Default values
+#define DEVICE_ID_LENGTH 6 // DEVICE ID: To be manually defined with 6 bytes. It must be unique!
+#define DEVICE_ID {19, 11, 03, 18, 12, 00} // Year, Month, Day, Hour, Minutes, Seconds
 
 void nvmInit();
 void nvmReset();

@@ -16,7 +16,7 @@ Author:       desplega (www.desplega.com)
 
 #include "powerDown.h"
 
-volatile char wdt_counter = 0; // Counter for Watch Dog
+volatile char wdt_counter = 0; // Counter for Watchdog
 
 // Watchdog interrupt
 // Note: usually <Arduino.h> is required to use ISR
@@ -33,7 +33,7 @@ void initSleep()
   WDTCSR = bit(WDCE) | bit(WDE);
   // Set interrupt mode and an interval
   WDTCSR = bit(WDIE) | bit(WDP3) | bit(WDP0); // Set WDIE, and 8 seconds delay
-  wdt_reset(); // Reset the watchdog
+  wdt_reset();                                // Reset the watchdog
 
   // Disable ADC
   ADCSRA = 0;
@@ -43,11 +43,15 @@ void initSleep()
   sleep_enable();
 }
 
-void goToSleep()
+void goToSleep(char time)
 {
-  //BOD disable - this must be called right before the __asm__ sleep instruction
-  //MCUCR = bit(BODS) | bit(BODSE);
-  //MCUCR = bit(BODS);
-  wdt_reset();  // Reset the watchdog
-  sleep_mode(); // Entering sleep mode
+  wdt_counter = 0;
+  wdt_reset(); // Reset the watchdog
+  do
+  {
+    //BOD disable - this must be called right before the __asm__ sleep instruction
+    MCUCR = bit(BODS) | bit(BODSE);
+    MCUCR = bit(BODS);
+    sleep_mode(); // Entering sleep mode
+  } while (wdt_counter < time);
 }
