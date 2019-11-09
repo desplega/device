@@ -20,6 +20,7 @@
 #include <DallasTemperature.h>
 
 #include "nvm.h"
+#include "powerDown.h"
 
 // Store deviceID in a permanent variable to avoid reading nvm everytime we need it
 char deviceID[6];
@@ -145,6 +146,9 @@ void setup()
   // Configure serial port
   Serial.begin(9600);
 
+  // Init sleep mode
+  initSleep();
+
   // Init NVM
   nvmInit();
   nvmGetDeviceID(deviceID);
@@ -157,6 +161,10 @@ void setup()
 
   // LoRa Init
   initLoRa();
+
+  // Start in idle mode, required to avoid continuous reset... but I don't know why :(
+  rf95.sleep();
+  goToSleep();
 }
 
 void readData()
@@ -334,21 +342,25 @@ void loop()
         buf[2] = str[2];
         Serial.println((char *)buf);
 
-        Serial.print("RSSI: ");  // print RSSI
+        Serial.print("RSSI: "); // Print RSSI
         Serial.println(rf95.lastRssi(), DEC);
       }
     }
     else
     {
       Serial.println("recv failed");
-      rf95.send(sendBuf, strlen((char *)sendBuf)); //resend if no reply
+      rf95.send(sendBuf, strlen((char *)sendBuf)); // Resend if no reply
     }
   }
   else
   {
-    Serial.println("No reply, is LoRa gateway running?"); //No signal reply
-    rf95.send(sendBuf, strlen((char *)sendBuf));          //resend data
+    Serial.println("No reply, is LoRa gateway running?"); // No signal reply
+    rf95.send(sendBuf, strlen((char *)sendBuf));          // Resend data
   }
-  delay(10000); // Send sensor data every 10 seconds
   Serial.println("");
+  delay(2000); // 2 seconds
+  
+  // Power down mode
+  rf95.sleep(); // Disable LoRa radio
+  goToSleep();
 }
