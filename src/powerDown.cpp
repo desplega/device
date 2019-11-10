@@ -10,11 +10,8 @@ Date:         07/11/2019
 Author:       desplega (www.desplega.com)
 ------------------------------------------------------------------------------*/
 
-#include <Arduino.h>
-#include <avr/sleep.h>
-#include <avr/wdt.h>
-
 #include "powerDown.h"
+#include "battery.h"
 
 volatile char wdt_counter = 0; // Counter for Watchdog
 
@@ -45,13 +42,24 @@ void initSleep()
 
 void goToSleep(char time)
 {
-  wdt_counter = 0;
-  wdt_reset(); // Reset the watchdog
-  do
+  if (isVoltageLow())
   {
-    //BOD disable - this must be called right before the __asm__ sleep instruction
-    MCUCR = bit(BODS) | bit(BODSE);
-    MCUCR = bit(BODS);
-    sleep_mode(); // Entering sleep mode
-  } while (wdt_counter < time);
+      noInterrupts(); // FORCED SLEEP MODE FOR EVER
+      //BOD disable - this must be called right before the __asm__ sleep instruction
+      MCUCR = bit(BODS) | bit(BODSE);
+      MCUCR = bit(BODS);
+      sleep_mode(); // Entering sleep mode
+  }
+  else
+  {
+    wdt_counter = 0;
+    wdt_reset(); // Reset the watchdog
+    do
+    {
+      //BOD disable - this must be called right before the __asm__ sleep instruction
+      MCUCR = bit(BODS) | bit(BODSE);
+      MCUCR = bit(BODS);
+      sleep_mode(); // Entering sleep mode
+    } while (wdt_counter < time);
+  }
 }
