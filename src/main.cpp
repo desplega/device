@@ -28,8 +28,9 @@ char deviceID[6];
 RH_RF95 rf95;
 
 // LoRa data configuration
-char dt_dat[5];              // Store Sensor Data (MAX 2 devices!)
-char node_id[3] = {1, 1, 1}; // LoRa End Node ID
+char dt_dat[5];            // Store Sensor Data (MAX 2 devices!)
+#define NODE_ID_LENGTH 6
+const char *node_id = "<1234>";  // LoRa End Node ID
 float frequency = 868.0;
 unsigned int count = 1;
 
@@ -134,10 +135,7 @@ void initLoRa(void)
   Serial.println("Dallas Temperature IC Control & LoRa Demo");
   Serial.print("LoRa End Node ID: ");
 
-  for (int i = 0; i < 3; i++)
-  {
-    Serial.print(node_id[i], HEX);
-  }
+  Serial.print(node_id);
   Serial.println();
 }
 
@@ -248,34 +246,34 @@ void loop()
   count++;
   readData();
   char data[50] = {0};
-  int dataLength = 3 + 6 + PACKET_EXPECTED_DEVICES * 2 + 1; // Payload Length: node_id + temperature(s) + mesh
+  int dataLength = NODE_ID_LENGTH + DEVICE_ID_LENGTH + PACKET_EXPECTED_DEVICES * 2 + 1; // Payload Length: node_id + temperature(s) + mesh
 
-  // Use data[0], data[1], data[2] as Node ID
-  data[0] = node_id[0];
-  data[1] = node_id[1];
-  data[2] = node_id[2];
+  // Add to data[x] the Node ID
+  for (int i = 0; i < NODE_ID_LENGTH; i++) {
+    data[i] = node_id[i];
+  }
 
   // Get device ID
   for (int i = 0; i < DEVICE_ID_LENGTH; i++)
   {
-    data[3 + i] = deviceID[i];
+    data[NODE_ID_LENGTH + i] = deviceID[i];
   }
   Serial.print("Device ID: ");
   // Convert node ID to text
   char str[25];
-  sprintf(str, "%d %d %d %d %d %d", deviceID[0], deviceID[1], deviceID[2], deviceID[3], deviceID[4], deviceID[5]);
-  str[25] = 0x00; // End of string
+  sprintf(str, "%02d %02d %02d %02d %02d %02d", deviceID[0], deviceID[1], deviceID[2], deviceID[3], deviceID[4], deviceID[5]);
+  str[24] = 0x00; // End of string
   Serial.println(str);
 
   // Get temperature(s)
   for (int i = 0; i < PACKET_EXPECTED_DEVICES; i++)
   {
-    data[9 + (i * 2)] = dt_dat[i * 2];        //Get Temperature Integer Part
-    data[10 + (i * 2)] = dt_dat[(i * 2) + 1]; //Get Temperature Decimal Part
+    data[NODE_ID_LENGTH + DEVICE_ID_LENGTH + (i * 2)] = dt_dat[i * 2];        //Get Temperature Integer Part
+    data[NODE_ID_LENGTH + DEVICE_ID_LENGTH + 1 + (i * 2)] = dt_dat[(i * 2) + 1]; //Get Temperature Decimal Part
   }
 
   // Get mesh status
-  data[13] = dt_dat[4]; // Mesh status
+  data[NODE_ID_LENGTH + DEVICE_ID_LENGTH + PACKET_EXPECTED_DEVICES * 2] = dt_dat[4]; // Mesh status
 
   // Print temperature(s)
   for (int i = 0; i < PACKET_EXPECTED_DEVICES; i++)
@@ -283,14 +281,14 @@ void loop()
     Serial.print("Temperature ");
     Serial.print(i);
     Serial.print(": ");
-    Serial.print(data[9 + (i * 2)], DEC); //Show temperature
+    Serial.print(data[NODE_ID_LENGTH + DEVICE_ID_LENGTH + (i * 2)], DEC); //Show temperature
     Serial.print(",");
-    Serial.print(data[10 + (i * 2)], DEC); //Show temperature
+    Serial.print(data[NODE_ID_LENGTH + DEVICE_ID_LENGTH + 1 + (i * 2)], DEC); //Show temperature
     Serial.println("C");
   }
   // Print mesh status
   Serial.print("Mesh status: ");
-  Serial.println(data[13], DEC); // Show mesh status
+  Serial.println(data[NODE_ID_LENGTH + DEVICE_ID_LENGTH + PACKET_EXPECTED_DEVICES * 2], DEC); // Show mesh status
 
   uint16_t crcData = CRC16((unsigned char *)data, dataLength); //get CRC DATA
   //Serial.println(crcData,HEX);
@@ -304,7 +302,7 @@ void loop()
   }
   Serial.println();
 
-  unsigned char sendBuf[50] = {0};
+  unsigned char sendBuf[100] = {0};
 
   for (int i = 0; i < dataLength; i++)
   {
@@ -313,7 +311,7 @@ void loop()
 
   sendBuf[dataLength] = (unsigned char)crcData;            // Add CRC to LoRa Data
   sendBuf[dataLength + 1] = (unsigned char)(crcData >> 8); // Add CRC to LoRa Data
-
+  
   Serial.print("Data to be sent(with CRC):    ");
   for (int i = 0; i < (dataLength + 2); i++)
   {
@@ -322,8 +320,53 @@ void loop()
   }
   Serial.println();
 
-  rf95.send(sendBuf, dataLength + 2); //Send LoRa Data
+  //rf95.send(sendBuf, dataLength + 2); //Send LoRa Data
 
+  // Adapt for LG01-N (Ack not implemented yet, no CRC is sent for now) *******************
+  char dataSend[100] = {0};
+  char intStr[5];
+  int bufIndex;
+
+  for (bufIndex = 0; bufIndex < NODE_ID_LENGTH; bufIndex++) {
+    dataSend[bufIndex] = sendBuf[bufIndex];
+  }
+  strcat(dataSend, "{\"number\":\"");
+  for (int i = 0; i < DEVICE_ID_LENGTH; i++) {
+    sprintf(intStr, "%02d", sendBuf[bufIndex++]);
+    strcat(dataSend, intStr);
+  }
+  strcat(dataSend, "\",\"data\":{\"t0\":\"");
+  sprintf(intStr, "%d", sendBuf[bufIndex++]);
+  strcat(dataSend, intStr);
+  strcat(dataSend, ".");
+  sprintf(intStr, "%d", sendBuf[bufIndex++]);
+  strcat(dataSend, intStr);
+  strcat(dataSend, "\",\"t1\":\"");
+  sprintf(intStr, "%d", sendBuf[bufIndex++]);
+  strcat(dataSend, intStr);
+  strcat(dataSend, ".");
+  sprintf(intStr, "%d", sendBuf[bufIndex++]);
+  strcat(dataSend, intStr);
+  strcat(dataSend, "\",\"m\":\"");
+  sprintf(intStr, "%d", sendBuf[bufIndex++]);
+  strcat(dataSend, intStr);
+  strcat(dataSend, "\",\"l\":\"");
+  sprintf(intStr, "%d", 0); // LED is forced to 0 for now
+  strcat(dataSend, intStr);
+  strcat(dataSend, "\"}}");
+
+  Serial.println(dataSend);
+  int length = strlen(dataSend);
+  Serial.print("Packet length: ");
+  Serial.println(length);
+
+  strcpy((char *)sendBuf, dataSend);
+  rf95.send(sendBuf, strlen(dataSend)); //Send LoRa Data
+  Serial.println("LoRa packet sent...");
+  //***************************************************************************************
+
+  /* No Ack yet for LG01-N */
+  /*
   uint8_t buf[RH_RF95_MAX_MESSAGE_LEN]; //Reply data array
   uint8_t len = sizeof(buf);            //reply data length
 
@@ -350,15 +393,16 @@ void loop()
     else
     {
       Serial.println("recv failed");
-      rf95.send(sendBuf, strlen((char *)sendBuf)); // Resend if no reply
+      //rf95.send(sendBuf, strlen((char *)sendBuf)); // Resend if no reply
     }
   }
   else
   {
     Serial.println("No reply, is LoRa gateway running?"); // No signal reply
-    rf95.send(sendBuf, strlen((char *)sendBuf));          // Resend data
+    //rf95.send(sendBuf, strlen((char *)sendBuf));          // Resend data
   }
   Serial.println("");
+  */
 
   // Power down mode
   delay(2000);  // Wait some time just in case to make everything stable
