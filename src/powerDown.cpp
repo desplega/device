@@ -32,9 +32,6 @@ void initSleep()
   WDTCSR = bit(WDIE) | bit(WDP3) | bit(WDP0); // Set WDIE, and 8 seconds delay
   wdt_reset();                                // Reset the watchdog
 
-  // Disable ADC
-  ADCSRA = 0;
-
   //ENABLE SLEEP - this enables the sleep mode
   set_sleep_mode(SLEEP_MODE_PWR_DOWN); // set up sleep mode
   sleep_enable();
@@ -54,6 +51,8 @@ void goToSleep(char time)
   {
     wdt_counter = 0;
     wdt_reset(); // Reset the watchdog
+    // Disable ADC
+    ADCSRA &= ~_BV(ADEN);
     do
     {
       //BOD disable - this must be called right before the __asm__ sleep instruction
@@ -61,5 +60,7 @@ void goToSleep(char time)
       MCUCR = bit(BODS);
       sleep_mode(); // Entering sleep mode
     } while (wdt_counter < time);
+    // Enable ADC
+    ADCSRA |= _BV(ADEN);
   }
 }

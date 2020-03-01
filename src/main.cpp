@@ -6,7 +6,7 @@
   Support Devices: LoRa Radio Node v1.0
   
   This program reads Temperature from Dallas Temperature sensor DS18B20.
-  It also reads a digital input that will be connected to a high voltage mesh.
+  It also reads an analog input that will be connected to a high voltage harp.
   Then send the value to LoRa Gateway, the LoRa Gateway will send the value to the 
   IoT server (MQTT Server)
 
@@ -37,8 +37,8 @@ unsigned int count = 1;
 // To construct the LoRa packet we expect always a specific number of devices
 #define PACKET_EXPECTED_DEVICES 2
 
-// Mesh status
-#define MESH_PIN 3
+// Harp status input (analog)
+#define HARP_INPUT A0
 
 // Data wire is plugged into port 4 on the Arduino
 #define ONE_WIRE_BUS 4          // D4 (not the pin number, but the number of digital I/O port)
@@ -116,9 +116,14 @@ void initDT(void)
   }
 }
 
-void initMeshStatus(void)
+uint8_t getHarpStatus(void)
 {
-  pinMode(MESH_PIN, INPUT_PULLUP); // Internal pull up enabled
+  int analogPin = A0;
+  // If Vh > 0,8V then Harp is On
+  int analogValue = analogRead(analogPin);
+  Serial.print("Vh = ");
+  Serial.println(analogValue);
+  return (analogValue > 250 ? 1 : 0);  
 }
 
 void initLoRa(void)
@@ -153,9 +158,6 @@ void setup()
 
   // Temperature sensors init
   initDT();
-
-  // Mesh status
-  initMeshStatus();
 
   // LoRa Init
   initLoRa();
@@ -203,8 +205,8 @@ void readData()
     break;
   }
 
-  // Get mesh status
-  dt_dat[4] = digitalRead(MESH_PIN);
+  // Get harp status
+  dt_dat[4] = getHarpStatus();
 };
 
 uint16_t calcByte(uint16_t crc, uint8_t b)
@@ -246,7 +248,7 @@ void loop()
   count++;
   readData();
   char data[50] = {0};
-  int dataLength = NODE_ID_LENGTH + DEVICE_ID_LENGTH + PACKET_EXPECTED_DEVICES * 2 + 1; // Payload Length: node_id + temperature(s) + mesh
+  int dataLength = NODE_ID_LENGTH + DEVICE_ID_LENGTH + PACKET_EXPECTED_DEVICES * 2 + 1; // Payload Length: node_id + temperature(s) + harp
 
   // Add to data[x] the Node ID
   for (int i = 0; i < NODE_ID_LENGTH; i++) {
@@ -272,8 +274,8 @@ void loop()
     data[NODE_ID_LENGTH + DEVICE_ID_LENGTH + 1 + (i * 2)] = dt_dat[(i * 2) + 1]; //Get Temperature Decimal Part
   }
 
-  // Get mesh status
-  data[NODE_ID_LENGTH + DEVICE_ID_LENGTH + PACKET_EXPECTED_DEVICES * 2] = dt_dat[4]; // Mesh status
+  // Get harp status
+  data[NODE_ID_LENGTH + DEVICE_ID_LENGTH + PACKET_EXPECTED_DEVICES * 2] = dt_dat[4]; // Harp status
 
   // Print temperature(s)
   for (int i = 0; i < PACKET_EXPECTED_DEVICES; i++)
@@ -286,9 +288,9 @@ void loop()
     Serial.print(data[NODE_ID_LENGTH + DEVICE_ID_LENGTH + 1 + (i * 2)], DEC); //Show temperature
     Serial.println("C");
   }
-  // Print mesh status
-  Serial.print("Mesh status: ");
-  Serial.println(data[NODE_ID_LENGTH + DEVICE_ID_LENGTH + PACKET_EXPECTED_DEVICES * 2], DEC); // Show mesh status
+  // Print harp status
+  Serial.print("Harp status: ");
+  Serial.println(data[NODE_ID_LENGTH + DEVICE_ID_LENGTH + PACKET_EXPECTED_DEVICES * 2], DEC); // Show harp status
 
   uint16_t crcData = CRC16((unsigned char *)data, dataLength); //get CRC DATA
   //Serial.println(crcData,HEX);
@@ -347,7 +349,7 @@ void loop()
   strcat(dataSend, ".");
   sprintf(intStr, "%d", sendBuf[bufIndex++]);
   strcat(dataSend, intStr);
-  strcat(dataSend, "\",\"m\":\"");
+  strcat(dataSend, "\",\"h\":\"");
   sprintf(intStr, "%d", sendBuf[bufIndex++]);
   strcat(dataSend, intStr);
   strcat(dataSend, "\",\"l\":\"");
