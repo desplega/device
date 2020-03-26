@@ -118,7 +118,7 @@ void initDT(void)
 
 uint8_t getHarpStatus(void)
 {
-  int analogPin = A0;
+  int analogPin = HARP_INPUT;
   // If Vh > 0,8V then Harp is On
   int analogValue = analogRead(analogPin);
   Serial.print("Vh = ");

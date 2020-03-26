@@ -53,6 +53,9 @@ void goToSleep(char time)
     wdt_reset(); // Reset the watchdog
     // Disable ADC
     ADCSRA &= ~_BV(ADEN);
+    // Configure A0 as input to avoid leaks when in power down mode
+    pinMode(A0, INPUT);
+    digitalWrite(A0, LOW); // Ensure pull-up is disabled
     do
     {
       //BOD disable - this must be called right before the __asm__ sleep instruction
