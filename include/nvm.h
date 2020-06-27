@@ -16,7 +16,7 @@
 
 // Default values
 #define DEVICE_ID_LENGTH 6 // DEVICE ID: To be manually defined with 6 bytes. It must be unique!
-#define DEVICE_ID {19, 11, 03, 18, 12, 00} // Year, Month, Day, Hour, Minutes, Seconds
+#define DEVICE_ID {20, 06, 27, 06, 35, 00} // Year, Month, Day, Hour, Minutes, Seconds
 
 void nvmInit();
 void nvmReset();

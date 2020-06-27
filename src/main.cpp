@@ -30,8 +30,8 @@ RH_RF95 rf95;
 // LoRa data configuration
 char dt_dat[5];            // Store Sensor Data (MAX 2 devices!)
 #define NODE_ID_LENGTH 6
-const char *node_id = "<1234>";  // LoRa End Node ID
-float frequency = 868.0;
+const char *node_id = "<5678>";  // LoRa End Node ID
+float frequency = 868.1; // Frequence in channel is 868100000 Hz
 unsigned int count = 1;
 
 // To construct the LoRa packet we expect always a specific number of devices
@@ -245,7 +245,10 @@ void loop()
   Serial.print("COUNT=");
   Serial.print(count);
   Serial.println("    ###########");
-  count++;
+  if (count > 1000)
+    count = 11; // To avoid sending fast data on the first 10 values
+  else
+    count++;
   readData();
   char data[50] = {0};
   int dataLength = NODE_ID_LENGTH + DEVICE_ID_LENGTH + PACKET_EXPECTED_DEVICES * 2 + 1; // Payload Length: node_id + temperature(s) + harp
@@ -409,5 +412,8 @@ void loop()
   // Power down mode
   delay(2000);  // Wait some time just in case to make everything stable
   rf95.sleep(); // Disable LoRa radio
-  goToSleep(SLEEP_TIME);
+  if (count > 10)
+    goToSleep(SLEEP_TIME);
+  else
+    goToSleep(1); // First values are shown quickly
 }
